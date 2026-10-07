@@ -19,7 +19,6 @@ Entradas inválidas geram exceções da hierarquia `TaskValidationError`. Listas
 tarefas concluídas retornam 0.0 nas médias, sem divisão por zero.
 
 ## Estrutura
-
 ```
 sdd-task-analyzer/
 ├── README.md
@@ -34,12 +33,13 @@ sdd-task-analyzer/
     └── task_analyzer.py       # Implementação gerada via IA e homologada
 ```
 
+
 ## Como executar
 
 Requisito: **Python 3.11 ou superior**.
 
 ```bash
-git clone https://github.com/<seu-usuario>/sdd-task-analyzer.git
+git clone https://github.com/PedroVargas1204/sdd-task-analyzer.git
 cd sdd-task-analyzer
 python -m venv .venv
 # Windows: .venv\Scripts\activate    |    Linux/macOS: source .venv/bin/activate
