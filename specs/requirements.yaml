@@ -1,0 +1,353 @@
+---
+# Requisitos executáveis do TaskAnalyzer em formato legível por máquina.
+#
+# Fonte da verdade: specs/task_analyzer_spec.md (v1.1.0). Este arquivo NÃO cria
+# regras novas: ele estrutura as regras RN01 a RN16 já especificadas, ligando cada
+# uma ao teste que a verifica em tests/test_harness.py.
+#
+# Campo "situacao":
+#   validado_por_teste  = existe teste automatizado que falha se a regra for violada
+#   coberto_indiretamente = a regra é exercida por testes, mas sem asserção dedicada
+# Nenhum requisito é marcado como validado apenas por estar documentado.
+
+meta:
+  projeto: TaskAnalyzer
+  repositorio: sdd-task-analyzer
+  versao_contrato: 1.1.0
+  especificacao_fonte: specs/task_analyzer_spec.md
+  suite_de_testes: tests/test_harness.py
+  implementacao: src/task_analyzer.py
+  total_regras_negocio: 16
+  total_casos_de_teste: 37
+  comando_de_verificacao: pytest tests/test_harness.py -v
+  observacao: >-
+    Os identificadores CA-xx e CE-xx referenciam os cenários de aceite da seção 2 da
+    especificação. Os nomes de teste seguem o padrão test_caXX_* e test_ceXX_*.
+
+dominios:
+  prioridade: [baixa, media, alta]
+  status: [concluida, pendente, cancelada]
+
+excecoes:
+  - id: TaskValidationError
+    papel: classe-base de toda a hierarquia de erros do módulo
+  - id: EntradaInvalidaError
+    herda_de: TaskValidationError
+    quando: entrada não é list, elemento não é Tarefa, ou id_tarefa duplicado
+  - id: TarefaInvalidaError
+    herda_de: TaskValidationError
+    quando: id inválido, título vazio, domínio inválido ou status incoerente com as datas
+  - id: DataInvalidaError
+    herda_de: TaskValidationError
+    quando: data de tipo errado, sem fuso horário, ou cronologia violada
+
+requisitos:
+  - id: RN01
+    descricao: >-
+      Somente tarefas com status concluida entram no cálculo do tempo médio e da taxa
+      de atraso. Todas as tarefas válidas entram nas contagens.
+    condicao: tarefa.status == "concluida"
+    resultado_esperado: >-
+      Tarefas pendentes e canceladas afetam os totais, mas nunca as médias.
+    criterios_de_aceitacao:
+      - Uma lista com 4 concluídas entre 6 tarefas produz total_tarefas=6 e total_concluidas=4.
+      - Acrescentar uma pendente vencida não altera tempo médio nem taxa de atraso.
+    cenarios: [CA-01, CA-06]
+    testes:
+      - test_ca01_metricas_gerais_corretas
+      - test_ca06_pendente_vencida_nao_entra_no_atraso
+    implementado_em: _calcular_metricas
+    situacao: validado_por_teste
+
+  - id: RN02
+    descricao: >-
+      Tempo de conclusão = (data_conclusao - data_inicio).total_seconds() / 3600,
+      expresso em horas de tempo corrido.
+    condicao: tarefa concluída, com data_inicio e data_conclusao presentes
+    resultado_esperado: diferença em horas, sem arredondamento intermediário
+    criterios_de_aceitacao:
+      - Início 09:00 e conclusão 11:00 produzem 2.0 horas.
+      - Chamar a função com tarefa não concluída lança TarefaInvalidaError.
+    cenarios: [CA-01, CA-08, CE-16]
+    testes:
+      - test_ca01_metricas_gerais_corretas
+      - test_ca08_datas_normalizadas_para_utc
+      - test_ce16_funcoes_auxiliares_exigem_tarefa_concluida
+    implementado_em: calcular_tempo_conclusao_horas
+    situacao: validado_por_teste
+
+  - id: RN03
+    descricao: >-
+      Uma tarefa concluída está atrasada se, e somente se, data_conclusao > prazo.
+      Concluir exatamente no prazo não é atraso.
+    condicao: tarefa concluída
+    resultado_esperado: booleano de atraso, com o limite tratado como pontualidade
+    criterios_de_aceitacao:
+      - Conclusão às 10:00 com prazo às 10:00 não conta como atraso.
+      - A taxa de atraso do conjunto base é 25.0 por cento.
+    cenarios: [CA-01, CA-03, CE-16]
+    testes:
+      - test_ca01_metricas_gerais_corretas
+      - test_ca03_conclusao_exatamente_no_prazo_nao_e_atraso
+      - test_ce16_funcoes_auxiliares_exigem_tarefa_concluida
+    implementado_em: esta_atrasada
+    situacao: validado_por_teste
+
+  - id: RN04
+    descricao: Tempo médio = soma dos tempos dividida pela quantidade de concluídas do grupo.
+    condicao: grupo com pelo menos uma tarefa concluída
+    resultado_esperado: média em horas, com 2 casas decimais
+    criterios_de_aceitacao:
+      - 8.25 horas em 4 tarefas concluídas produzem 2.06.
+      - Por prioridade, alta=3.0, media=1.5 e baixa=0.75 no conjunto base.
+    cenarios: [CA-01, CA-02]
+    testes:
+      - test_ca01_metricas_gerais_corretas
+      - test_ca02_indicadores_por_prioridade_corretos
+    implementado_em: _media
+    situacao: validado_por_teste
+
+  - id: RN05
+    descricao: Taxa de atraso = (atrasadas / concluídas) * 100, calculada por grupo.
+    condicao: grupo com pelo menos uma tarefa concluída
+    resultado_esperado: percentual entre 0 e 100, com 2 casas decimais
+    criterios_de_aceitacao:
+      - 1 atrasada entre 4 concluídas produz 25.0.
+      - Na prioridade alta, 1 atrasada entre 2 concluídas produz 50.0.
+    cenarios: [CA-01, CA-02]
+    testes:
+      - test_ca01_metricas_gerais_corretas
+      - test_ca02_indicadores_por_prioridade_corretos
+    implementado_em: _percentual
+    situacao: validado_por_teste
+
+  - id: RN06
+    descricao: >-
+      round(valor, 2) é aplicado somente ao resultado final, nunca a valores
+      intermediários, usando o arredondamento padrão do Python.
+    condicao: qualquer métrica numérica de saída
+    resultado_esperado: precisão preservada durante o cálculo
+    criterios_de_aceitacao:
+      - Tempos de 1h, 1h e 2h produzem média 1.33 (4/3) e não 1.34.
+      - 1 atrasada entre 3 concluídas produz 33.33.
+    cenarios: [CA-04]
+    testes:
+      - test_ca04_arredondamento_apenas_no_resultado_final
+    implementado_em: _media, _percentual
+    situacao: validado_por_teste
+
+  - id: RN07
+    descricao: >-
+      Todas as datas devem ser timezone-aware e são normalizadas para UTC antes de
+      qualquer comparação ou cálculo. Data naive ou de tipo diferente de datetime
+      resulta em DataInvalidaError.
+    condicao: qualquer campo de data da tarefa
+    resultado_esperado: comparações corretas entre fusos distintos, ou exceção
+    criterios_de_aceitacao:
+      - Datas em UTC-3 e UTC produzem o mesmo resultado que datas equivalentes em UTC.
+      - datetime sem tzinfo lança DataInvalidaError.
+      - String no lugar de datetime lança DataInvalidaError.
+    cenarios: [CA-08, CE-07, CE-15]
+    testes:
+      - test_ca08_datas_normalizadas_para_utc
+      - test_ce05_a_ce15_tarefa_invalida
+    implementado_em: _validar_tipos_datas, _em_utc
+    situacao: validado_por_teste
+
+  - id: RN08
+    descricao: >-
+      Coerência cronológica obrigatória: prazo >= data_criacao;
+      data_conclusao >= data_criacao; data_inicio >= data_criacao;
+      data_conclusao >= data_inicio. Violação resulta em DataInvalidaError.
+    condicao: tarefa com datas de tipo e fuso já validados
+    resultado_esperado: >-
+      DataInvalidaError com mensagem no padrão "Tarefa {id}: {motivo}."
+    criterios_de_aceitacao:
+      - Conclusão anterior à criação lança DataInvalidaError.
+      - Conclusão anterior ao início lança DataInvalidaError.
+      - Início anterior à criação lança DataInvalidaError.
+      - Prazo anterior à criação lança DataInvalidaError.
+    cenarios: [CE-01, CE-02, CE-12, CE-13]
+    testes:
+      - test_ce01_conclusao_anterior_a_criacao
+      - test_ce02_conclusao_anterior_ao_inicio
+      - test_ce05_a_ce15_tarefa_invalida
+    implementado_em: _validar_cronologia
+    situacao: validado_por_teste
+
+  - id: RN09
+    descricao: >-
+      Tarefa concluida exige data_inicio e data_conclusao preenchidas; tarefas
+      pendente e cancelada exigem data_conclusao igual a None.
+    condicao: qualquer tarefa
+    resultado_esperado: TarefaInvalidaError quando status e datas são incoerentes
+    criterios_de_aceitacao:
+      - Concluída sem data_conclusao lança TarefaInvalidaError.
+      - Concluída sem data_inicio lança TarefaInvalidaError.
+      - Pendente ou cancelada com data_conclusao lança TarefaInvalidaError.
+    cenarios: [CE-08, CE-09]
+    testes:
+      - test_ce05_a_ce15_tarefa_invalida
+    implementado_em: _validar_status_datas
+    situacao: validado_por_teste
+
+  - id: RN10
+    descricao: >-
+      Proteção contra divisão por zero: se o grupo não tiver tarefas concluídas, o
+      tempo médio e a taxa de atraso valem 0.0. A divisão nunca é executada e nenhuma
+      exceção é lançada.
+    condicao: quantidade de concluídas igual a zero
+    resultado_esperado: 0.0 nas médias, sem exceção
+    criterios_de_aceitacao:
+      - Lista vazia retorna todos os totais em 0 e todas as médias em 0.0.
+      - Lista só com pendentes e canceladas retorna médias 0.0 sem exceção.
+      - A guarda é um if explícito, não um try/except ZeroDivisionError (regra D13).
+    cenarios: [CA-09, CA-10]
+    testes:
+      - test_ca09_lista_vazia_retorna_zeros
+      - test_ca10_somente_pendentes_e_canceladas_retorna_zero_sem_excecao
+    implementado_em: _media, _percentual
+    situacao: validado_por_teste
+    nota: >-
+      0.0 significa "sem dados", não "tempo zero". O chamador distingue os casos pelo
+      campo total_concluidas == 0.
+
+  - id: RN11
+    descricao: >-
+      As três chaves de prioridade (baixa, media, alta) sempre existem no relatório.
+      Prioridade sem tarefas tem contagens 0 e métricas 0.0.
+    condicao: qualquer lista de entrada, inclusive vazia
+    resultado_esperado: dicionário com exatamente três chaves
+    criterios_de_aceitacao:
+      - Lista sem nenhuma tarefa de prioridade baixa ainda retorna a chave "baixa" zerada.
+      - Prioridade com tarefas mas sem concluídas retorna métricas 0.0.
+    cenarios: [CA-05]
+    testes:
+      - test_ca05_prioridade_sem_concluidas_retorna_zero
+    implementado_em: _agrupar_por_prioridade
+    situacao: validado_por_teste
+
+  - id: RN12
+    descricao: >-
+      Os campos prioridade e status aceitam apenas os valores dos domínios fechados.
+      Qualquer outro valor resulta em TarefaInvalidaError.
+    condicao: validação de cada tarefa
+    resultado_esperado: TarefaInvalidaError identificando o campo e o valor recebido
+    criterios_de_aceitacao:
+      - prioridade "urgente" lança TarefaInvalidaError.
+      - status "feito" lança TarefaInvalidaError.
+    cenarios: [CE-05, CE-06]
+    testes:
+      - test_ce05_a_ce15_tarefa_invalida
+    implementado_em: _validar_dominio
+    situacao: validado_por_teste
+
+  - id: RN13
+    descricao: >-
+      id_tarefa deve ser inteiro maior que zero, com bool explicitamente proibido, e
+      titulo não pode ser vazio; violações resultam em TarefaInvalidaError. ID
+      duplicado na lista resulta em EntradaInvalidaError.
+    condicao: validação de cada tarefa e da lista como um todo
+    resultado_esperado: exceção específica conforme o tipo da violação
+    criterios_de_aceitacao:
+      - id_tarefa igual a 0, -1, True ou "1" lança TarefaInvalidaError.
+      - titulo composto só de espaços lança TarefaInvalidaError.
+      - Dois elementos com id_tarefa=3 lançam EntradaInvalidaError.
+    cenarios: [CE-10, CE-11, CE-14]
+    testes:
+      - test_ce10_id_tarefa_duplicado
+      - test_ce11_id_tarefa_invalido
+      - test_ce05_a_ce15_tarefa_invalida
+    implementado_em: _validar_id, _validar_titulo, _validar_ids_unicos
+    situacao: validado_por_teste
+
+  - id: RN14
+    descricao: >-
+      A entrada deve ser uma list, possivelmente vazia, cujos elementos sejam todos
+      instâncias de Tarefa. Caso contrário, EntradaInvalidaError. Lista vazia retorna
+      relatório com zeros.
+    condicao: argumento recebido por analyze_tasks
+    resultado_esperado: relatório zerado ou EntradaInvalidaError
+    criterios_de_aceitacao:
+      - None, dict, str e tuple lançam EntradaInvalidaError.
+      - Elemento que não é Tarefa lança EntradaInvalidaError indicando a posição.
+      - Lista vazia é entrada válida e retorna relatório zerado.
+    cenarios: [CA-09, CE-03, CE-04]
+    testes:
+      - test_ca09_lista_vazia_retorna_zeros
+      - test_ce03_entrada_que_nao_e_lista
+      - test_ce04_elemento_que_nao_e_tarefa
+    implementado_em: _validar_estrutura
+    situacao: validado_por_teste
+
+  - id: RN15
+    descricao: >-
+      Validação fail-fast e atômica: todas as tarefas são validadas, na ordem da lista,
+      antes de qualquer cálculo. Nenhum resultado parcial é retornado.
+    condicao: lista contendo ao menos uma tarefa inválida
+    resultado_esperado: exceção propagada, sem relatório parcial
+    criterios_de_aceitacao:
+      - Conjunto base válido mais uma tarefa inválida lança exceção e não retorna relatório.
+    cenarios: [CE-01]
+    testes:
+      - test_ce01_conclusao_anterior_a_criacao
+    implementado_em: analyze_tasks
+    situacao: validado_por_teste
+
+  - id: RN16
+    descricao: >-
+      A função é pura: não modifica a entrada, não faz I/O e o resultado independe da
+      ordem das tarefas na lista.
+    condicao: qualquer execução
+    resultado_esperado: entrada inalterada e resultado estável
+    criterios_de_aceitacao:
+      - A lista de entrada permanece igual a uma cópia profunda feita antes da chamada.
+      - A lista invertida produz exatamente o mesmo relatório.
+    cenarios: [CA-07]
+    testes:
+      - test_ca07_funcao_pura_e_independente_da_ordem
+    implementado_em: analyze_tasks
+    situacao: validado_por_teste
+
+requisitos_nao_funcionais:
+  - id: RNF01
+    descricao: Linguagem Python 3.11 ou superior.
+    verificacao: >-
+      O código usa StrEnum (3.11+) e sintaxe X | None. O CI executa em Python 3.11 e o
+      container usa a imagem python:3.11-slim.
+    situacao: validado_por_ci
+
+  - id: RNF02
+    descricao: Apenas biblioteca padrão em src/; pytest e pytest-cov nos testes.
+    verificacao: >-
+      Revisão dos imports de src/task_analyzer.py (logging, dataclasses, datetime, enum,
+      typing) e conteúdo de requirements.txt.
+    situacao: validado_por_revisao_humana
+
+  - id: RNF03
+    descricao: Complexidade O(n) no número de tarefas, sem laços aninhados sobre a lista.
+    verificacao: Revisão do código; não há teste de desempenho automatizado.
+    situacao: coberto_indiretamente
+    pendencia: >-
+      Não existe benchmark automatizado. Houve apenas um teste manual com 1.000 tarefas,
+      registrado no Pull Request da Fase 2.
+
+  - id: RNF04
+    descricao: Função pura, sem I/O, sem estado global e sem modificar a entrada.
+    verificacao: test_ca07_funcao_pura_e_independente_da_ordem
+    situacao: validado_por_teste
+
+  - id: RNF05
+    descricao: >-
+      Observabilidade via logging, com o campo titulo nunca registrado em log
+      (minimização de dados).
+    verificacao: test_ca11_logs_nao_registram_titulo
+    cenarios: [CA-11]
+    situacao: validado_por_teste
+
+  - id: RNF06
+    descricao: Cobertura de testes maior ou igual a 90 por cento em src/.
+    verificacao: >-
+      pytest tests/test_harness.py --cov=src --cov-report=term-missing resultou em
+      100 por cento de cobertura na execução local da Fase 3.
+    situacao: validado_por_teste
