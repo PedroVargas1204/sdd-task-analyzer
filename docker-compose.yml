@@ -1,0 +1,11 @@
+# Orquestração da suíte de testes isolada.
+# Execução com um único comando: docker compose run --rm tests
+services:
+  tests:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: task-analyzer-tests
+    container_name: task-analyzer-tests
+    # Sem command: herda o CMD do Dockerfile, mantendo um único ponto de verdade
+    # sobre como a suíte é executada (CI, docker run e compose rodam o mesmo).
