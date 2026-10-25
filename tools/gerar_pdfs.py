@@ -192,13 +192,19 @@ def converter(markdown: str, largura_util: float, pular_ate_h1: bool) -> list:
             ):
                 bloco.append(linhas[i].strip())
                 i += 1
-            marcador = "\u2022"
+            # Caixas de sele\u00e7\u00e3o viram prefixo monoespa\u00e7ado: os glifos Unicode de
+            # "check" e "quadrado" n\u00e3o existem nas fontes padr\u00e3o do ReportLab e
+            # seriam desenhados como ret\u00e2ngulos pretos.
             texto = " ".join(bloco)
+            prefixo = ""
             if texto.startswith("[x] "):
-                marcador, texto = "\u2713", texto[4:]
+                prefixo, texto = "<font face='Courier'>[x]</font>&nbsp;", texto[4:]
             elif texto.startswith("[ ] "):
-                marcador, texto = "\u25a1", texto[4:]
-            flow.append(Paragraph(inline(texto), ITEM, bulletText=marcador))
+                prefixo, texto = "<font face='Courier'>[&nbsp;]</font>&nbsp;", texto[4:]
+            if prefixo:
+                flow.append(Paragraph(prefixo + inline(texto), ITEM))
+            else:
+                flow.append(Paragraph(inline(texto), ITEM, bulletText="\u2022"))
             continue
         elif re.match(r"\s*\d+\. ", linha):
             numero = re.match(r"\s*(\d+)\. ", linha).group(1)

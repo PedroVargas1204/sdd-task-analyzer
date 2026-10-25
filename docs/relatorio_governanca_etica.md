@@ -109,9 +109,10 @@ aponta diretamente para a regra violada. O arquivo `specs/requirements.yaml`, cr
 fase, formaliza esse vínculo: cada regra RN01 a RN16 lista os testes que a verificam e sua
 situação de validação.
 
-*Fato verificável:* a execução local de `pytest tests/test_harness.py -v` na preparação
-desta entrega resultou em **37 passed**, e `--cov=src` reportou **100% de cobertura** de
-`src/task_analyzer.py`. A cobertura total é uma evidência adicional relevante: indica que
+*Fato verificável:* `pytest tests/test_harness.py -v` resultou em **37 passed** em três
+ambientes independentes — a máquina do autor, o runner `ubuntu-latest` do GitHub Actions
+(Python 3.11.17) e o container `python:3.11-slim` — e `--cov=src` reportou **100% de
+cobertura** de `src/task_analyzer.py` nos dois primeiros. A cobertura total é uma evidência adicional relevante: indica que
 **não há caminhos de código sem cenário correspondente** — ou seja, a IA não acrescentou
 lógica além do contrato.
 
@@ -227,14 +228,25 @@ demais dependem de execução no ambiente do autor.
 - [x] `specs/requirements.yaml` validado: as 16 regras estão presentes, em ordem, e todos
       os testes e funções citados existem de fato no repositório.
 - [x] Nenhuma credencial, token ou dado pessoal sensível incluído nos arquivos.
+- [x] **Build verde confirmado na aba Actions**, em Python 3.11.17, com `configfile:
+      pytest.ini`, 37 casos coletados e cobertura de 100%.
+- [x] **`docker build -t task-analyzer-tests .`** concluído com sucesso.
+- [x] **`docker run --rm task-analyzer-tests`** executado: 37 passed dentro do container.
+- [x] **`docker compose run --rm tests`** executado: 37 passed, com `rootdir: /app`.
+- [x] Pull Request `feature/devops-governanca` → `develop` aberto, com o CI aprovado, e
+      mergeado.
+- [x] Pull Request `develop` → `main` aberto, com o CI aprovado, e mergeado; tag `v2.0.0`
+      publicada.
 
-**Verificações que dependem do ambiente do autor (pendências):**
+**Verificação que permanece pendente:**
 
-- [ ] Build verde confirmado na aba Actions do GitHub, após o push.
-- [ ] `docker build -t task-analyzer-tests .` executado com sucesso.
-- [ ] `docker compose run --rm tests` executado com sucesso.
-- [ ] Revisão visual dos PDFs gerados.
-- [ ] Pull Request `develop` → `main` aberto, revisado e mergeado.
+- [ ] Revisão visual final dos PDFs pelo autor antes da submissão.
+
+**Observação metodológica.** A versão anterior deste relatório registrava as execuções de
+Docker como pendentes, porque o ambiente em que os artefatos foram preparados não dispunha
+do daemon. A atualização dos itens acima ocorreu somente **após** a execução real na
+máquina do autor, e não por antecipação — o que é, em si, uma aplicação do princípio
+adotado na seção A.6: não declarar como verificado aquilo que ainda não foi executado.
 
 ### B.6 Limitação estrutural reconhecida
 
@@ -381,9 +393,10 @@ decisão replicada em escala industrial tem impacto material.
 3. **Revisão por um único indivíduo.** Discutido na seção B.6.
 4. **Sem registro dedicado de alterações de prompts.** A estrutura está proposta na seção
    C.3, mas não implementada neste ciclo.
-5. **Docker não validado neste ambiente.** Os arquivos foram revisados estaticamente e o
-   YAML validado, mas a execução de `docker build` depende de uma máquina com Docker
-   instalado. Os comandos exatos constam do README.
+5. **Sem publicação da imagem em registro.** A imagem é construída localmente e no
+   container de teste, mas não é publicada em um registro (Docker Hub, GHCR) nem
+   construída pelo pipeline. Um passo de build no CI detectaria uma quebra do
+   `Dockerfile` que a execução local não capturaria.
 
 ---
 
@@ -417,6 +430,8 @@ realidade verificável.
 3. Publicar o relatório de cobertura como artefato do CI, permitindo acompanhar a evolução.
 4. Em contexto profissional, exigir revisor distinto do autor para código gerado por IA.
 5. Incluir um teste de carga com volume representativo para verificar a RNF03.
+6. Acrescentar um passo de `docker build` ao pipeline, para que uma quebra do `Dockerfile`
+   seja detectada pelo CI e não apenas na execução local.
 
 ---
 
