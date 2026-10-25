@@ -1,0 +1,31 @@
+# Contexto de build enxuto: só o necessário entra na imagem.
+.git/
+.github/
+.gitignore
+.dockerignore
+
+# Documentação e artefatos de entrega
+docs/
+specs/
+tools/
+README.md
+CONTEXT_RULES.md
+*.pdf
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Testes e cobertura
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Ambientes virtuais
+.venv/
+venv/
+
+# Editores e sistema
+.vscode/
+.idea/
+.DS_Store
